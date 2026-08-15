@@ -6,6 +6,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import com.amazonaws.HttpMethod;
 import com.amazonaws.services.s3.AmazonS3;
@@ -53,6 +54,12 @@ public class S3StorageService {
 
 	public String getPublicUrl(String s3Key) {
 		String bucket = awsProperties.getS3().getBucket();
+		String endpoint = awsProperties.getS3().getEndpoint();
+
+		if (StringUtils.hasText(endpoint)) {
+			return String.format("%s/%s/%s", endpoint, bucket, s3Key);
+		}
+
 		String region = awsProperties.getRegion().getStaticRegion();
 		return String.format("https://%s.s3.%s.amazonaws.com/%s", bucket, region, s3Key);
 	}

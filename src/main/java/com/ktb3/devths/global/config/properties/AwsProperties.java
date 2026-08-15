@@ -31,6 +31,7 @@ public class AwsProperties {
 	@RequiredArgsConstructor
 	public static class S3 {
 		private final String bucket;
+		private final String endpoint;
 	}
 
 	@Getter
