@@ -23,27 +23,10 @@ spring:
     redis:
       host: ${REDIS_HOST_V2:localhost}
       port: ${REDIS_PORT:6379}
-      database: ${REDIS_DATABASE:0}
       password: ${REDIS_PASSWORD:}
       timeout: ${REDIS_TIMEOUT:2000ms}
       ssl:
         enabled: ${REDIS_SSL:false}
-
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
-    virtual-host: ${RABBITMQ_VHOST:/}
-    publisher-confirm-type: correlated
-    publisher-returns: true
-    listener:
-      simple:
-        acknowledge-mode: manual
-        prefetch: 10
-        retry:
-          enabled: true
-          max-attempts: 3
 
   security:
     oauth2:
@@ -98,6 +81,7 @@ cloud:
       static-region: ${S3_REGION}
     s3:
       bucket: ${S3_BUCKET}
+      endpoint: ${S3_ENDPOINT:}
     stack:
       auto: false
 
@@ -138,14 +122,6 @@ chat:
   websocket:
     heartbeat-send-interval-ms: 25000
     heartbeat-receive-interval-ms: 25000
-  rabbitmq:
-    exchange: chat.events
-    message-queue: chat.message.queue
-    notification-queue: chat.notification.queue
-    message-dlq: chat.message.dlq
-    notification-dlq: chat.notification.dlq
-    message-routing-key: chat.message.broadcast
-    notification-routing-key: chat.notification.user
 
 app:
   cache:

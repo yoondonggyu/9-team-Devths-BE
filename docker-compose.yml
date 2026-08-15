@@ -1,15 +1,14 @@
 services:
-  # 백엔드 애플리케이션
-  devths-be:
+  devths-be-1:
     image: ${FULL_IMAGE}
-    container_name: devths-be
+    container_name: devths-be-1
     restart: unless-stopped
     env_file:
       - .env
     ports:
       - '8080:8080'
     volumes:
-      - ${LOG_FILE_DIRECTORY}:/app/log
+      - ${LOG_FILE_DIRECTORY}/be-1:/app/log
     networks:
       - devths-network
     healthcheck:
@@ -24,7 +23,32 @@ services:
         max-size: '10m'
         max-file: '3'
 
-  # 로그 관련 사이드카
+  devths-be-2:
+    image: ${FULL_IMAGE}
+    container_name: devths-be-2
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - SERVER_PORT=8081
+    ports:
+      - '8081:8081'
+    volumes:
+      - ${LOG_FILE_DIRECTORY}/be-2:/app/log
+    networks:
+      - devths-network
+    healthcheck:
+      test: [ 'CMD', 'curl', '-f', 'http://localhost:8081/actuator/health' ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
   promtail:
     image: grafana/promtail:latest
     container_name: devths-be-promtail
