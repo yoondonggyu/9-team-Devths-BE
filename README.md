@@ -105,3 +105,4 @@ AI 기반 이력서 분석, 모의 면접, 커뮤니티, 일정 관리 기능을
 - 홈 화면 아이콘 추가 (Android · iOS)
 - 전체 화면(standalone) 모드 실행
 - Firebase 기반 푸시 알림 수신
+# cicd test 1786779613
