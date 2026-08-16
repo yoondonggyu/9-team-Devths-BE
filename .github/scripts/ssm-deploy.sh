@@ -46,7 +46,7 @@ if [ -n "${DB_SECRET_ARN}" ]; then
   SECRET_JSON=\$(aws secretsmanager get-secret-value --secret-id "${DB_SECRET_ARN}" --region ${AWS_REGION} --query SecretString --output text)
   DB_USERNAME=\$(echo "\$SECRET_JSON" | jq -r .username)
   DB_PASSWORD=\$(echo "\$SECRET_JSON" | jq -r .password)
-  DB_ENV_ARGS="-e DB_URL=jdbc:postgresql://${DB_ENDPOINT}/devths -e DB_USERNAME=\${DB_USERNAME} -e DB_PASSWORD=\${DB_PASSWORD}"
+  DB_ENV_ARGS="-e DB_URL_V2=jdbc:postgresql://${DB_ENDPOINT}/devths -e DB_USERNAME=\${DB_USERNAME} -e DB_PASSWORD_V2=\${DB_PASSWORD}"
 fi
 
 docker stop ${CONTAINER_NAME} 2>/dev/null || true
