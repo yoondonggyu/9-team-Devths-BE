@@ -34,6 +34,7 @@ fi
 echo "대상: $INSTANCE_NAME ($INSTANCE_ID)"
 
 REMOTE_SCRIPT=$(cat <<EOS
+#!/bin/bash
 set -euo pipefail
 command -v jq >/dev/null 2>&1 || dnf install -y -q jq
 
@@ -70,12 +71,18 @@ exit 1
 EOS
 )
 
-COMMANDS_JSON=$(printf '%s' "$REMOTE_SCRIPT" | jq -Rs '[.]')
+# AWS CLI의 --parameters shorthand 문법은 스크립트 안의 파이프(|)/콤마/따옴표 등
+# 특수문자를 만나면 값을 잘못 쪼개는 경우가 있어(실제로 이 버그로 dnf install에
+# --region 플래그가 잘못 붙어 실패했음), shorthand 파싱을 완전히 우회하고
+# JSON 파일로 파라미터를 넘긴다.
+PARAMS_FILE=$(mktemp)
+trap 'rm -f "$PARAMS_FILE"' EXIT
+jq -n --arg script "$REMOTE_SCRIPT" '{commands: [$script]}' > "$PARAMS_FILE"
 
 COMMAND_ID=$(aws ssm send-command \
   --instance-ids "$INSTANCE_ID" \
   --document-name "AWS-RunShellScript" \
-  --parameters commands="$COMMANDS_JSON" \
+  --parameters "file://${PARAMS_FILE}" \
   --timeout-seconds 120 \
   --query "Command.CommandId" --output text)
 
