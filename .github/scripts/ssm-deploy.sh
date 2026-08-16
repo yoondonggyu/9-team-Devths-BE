@@ -69,15 +69,15 @@ docker run -d --name ${CONTAINER_NAME} --restart unless-stopped \\
   ${EXTRA_ARGS} \\
   ${IMAGE_URI}
 
-for i in \$(seq 1 15); do
-  sleep 2
+for i in \$(seq 1 40); do
+  sleep 3
   if curl -fsS "http://localhost:${CONTAINER_PORT}${HEALTH_PATH}"; then
     echo "헬스체크 통과"
     exit 0
   fi
 done
 echo "헬스체크 실패"
-docker logs --tail 50 ${CONTAINER_NAME} || true
+docker logs --tail 100 ${CONTAINER_NAME} || true
 exit 1
 EOS
 )
@@ -94,7 +94,7 @@ COMMAND_ID=$(aws ssm send-command \
   --instance-ids "$INSTANCE_ID" \
   --document-name "AWS-RunShellScript" \
   --parameters "file://${PARAMS_FILE}" \
-  --timeout-seconds 120 \
+  --timeout-seconds 300 \
   --query "Command.CommandId" --output text)
 
 echo "SSM Command ID: $COMMAND_ID"
