@@ -1,0 +1,107 @@
+name: AWS 배포 (ECR + SSM)
+
+on:
+  push:
+    branches: [aws]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-2
+  ECR_REPOSITORY: devths-be
+  ROLE_ARN: arn:aws:iam::717559668391:role/devths-github-actions-deploy
+  DB_SECRET_ARN: arn:aws:secretsmanager:ap-northeast-2:717559668391:secret:rds!db-8312ce09-0a25-444f-85af-8e3b421c53cd-lCRoVX
+  DB_ENDPOINT: devths-postgres.c7gk00c2e045.ap-northeast-2.rds.amazonaws.com:5432
+
+jobs:
+  build-and-push:
+    name: 빌드 및 ECR push
+    runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.build.outputs.image_uri }}
+      ai_ip: ${{ steps.ai-ip.outputs.ip }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build & push image
+        id: build
+        env:
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
+        run: |
+          set -euo pipefail
+          IMAGE_TAG="aws-$(git rev-parse --short HEAD)"
+          IMAGE_URI="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+          docker build -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+          echo "image_uri=$IMAGE_URI" >> "$GITHUB_OUTPUT"
+
+      - name: AI 인스턴스 사설 IP 조회 (BE -> AI 내부 호출용)
+        id: ai-ip
+        run: |
+          IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=devths-ai" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].PrivateIpAddress" --output text)
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+
+  deploy-be-1:
+    name: be-1 배포
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to be-1
+        run: |
+          chmod +x .github/scripts/ssm-deploy.sh
+          .github/scripts/ssm-deploy.sh \
+            devths-be-1 \
+            "${{ needs.build-and-push.outputs.image_uri }}" \
+            8080 \
+            /actuator/health \
+            devths-be \
+            "-e JAVA_OPTS=-Xmx512m -e SPRING_PROFILES_ACTIVE=aws -e FASTAPI_BASE_URL=http://${{ needs.build-and-push.outputs.ai_ip }}:8000 -e SPRING_JPA_DDL_AUTO=update -e JWT_SECRET=aws-migration-placeholder-secret-32c -e ENCRYPTION_AES_KEY=aws-migration-placeholder-key32! -e CORS_ALLOWED_ORIGINS=* -e S3_ACCESS_KEY=dummy -e S3_SECRET_KEY=dummy -e S3_BUCKET=dummy-bucket -e S3_REGION=ap-northeast-2 -e GOOGLE_CLIENT_ID=dummy -e GOOGLE_CLIENT_SECRET=dummy -e GOOGLE_REDIRECT_URI=http://localhost:8080/login/oauth2/code/google" \
+            "${{ env.DB_SECRET_ARN }}" \
+            "${{ env.DB_ENDPOINT }}"
+
+  deploy-be-2:
+    name: be-2 배포 (be-1 성공 후 순차 진행)
+    needs: [build-and-push, deploy-be-1]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy to be-2
+        run: |
+          chmod +x .github/scripts/ssm-deploy.sh
+          .github/scripts/ssm-deploy.sh \
+            devths-be-2 \
+            "${{ needs.build-and-push.outputs.image_uri }}" \
+            8080 \
+            /actuator/health \
+            devths-be \
+            "-e JAVA_OPTS=-Xmx512m -e SPRING_PROFILES_ACTIVE=aws -e FASTAPI_BASE_URL=http://${{ needs.build-and-push.outputs.ai_ip }}:8000 -e SPRING_JPA_DDL_AUTO=update -e JWT_SECRET=aws-migration-placeholder-secret-32c -e ENCRYPTION_AES_KEY=aws-migration-placeholder-key32! -e CORS_ALLOWED_ORIGINS=* -e S3_ACCESS_KEY=dummy -e S3_SECRET_KEY=dummy -e S3_BUCKET=dummy-bucket -e S3_REGION=ap-northeast-2 -e GOOGLE_CLIENT_ID=dummy -e GOOGLE_CLIENT_SECRET=dummy -e GOOGLE_REDIRECT_URI=http://localhost:8080/login/oauth2/code/google" \
+            "${{ env.DB_SECRET_ARN }}" \
+            "${{ env.DB_ENDPOINT }}"
