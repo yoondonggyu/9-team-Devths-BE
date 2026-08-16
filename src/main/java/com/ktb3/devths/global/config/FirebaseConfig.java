@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.lang.Nullable;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
@@ -40,7 +41,7 @@ public class FirebaseConfig {
 	}
 
 	@Bean
-	public FirebaseMessaging firebaseMessaging(FirebaseApp firebaseApp) {
+	public FirebaseMessaging firebaseMessaging(@Nullable FirebaseApp firebaseApp) {
 		if (firebaseApp == null) {
 			return null;
 		}

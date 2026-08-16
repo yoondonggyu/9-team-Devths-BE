@@ -2,6 +2,7 @@ package com.ktb3.devths.notification.service;
 
 import java.util.List;
 
+import org.springframework.lang.Nullable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,16 +16,19 @@ import com.google.firebase.messaging.WebpushNotification;
 import com.ktb3.devths.notification.domain.entity.FcmToken;
 import com.ktb3.devths.notification.repository.FcmTokenRepository;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class FcmService {
 
 	private final FirebaseMessaging firebaseMessaging;
 	private final FcmTokenRepository fcmTokenRepository;
+
+	public FcmService(@Nullable FirebaseMessaging firebaseMessaging, FcmTokenRepository fcmTokenRepository) {
+		this.firebaseMessaging = firebaseMessaging;
+		this.fcmTokenRepository = fcmTokenRepository;
+	}
 
 	@Async("taskExecutor")
 	@Transactional
