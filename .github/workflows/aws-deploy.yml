@@ -16,6 +16,8 @@ env:
   DB_SECRET_ARN: arn:aws:secretsmanager:ap-northeast-2:717559668391:secret:rds!db-8312ce09-0a25-444f-85af-8e3b421c53cd-lCRoVX
   DB_ENDPOINT: devths-postgres.c7gk00c2e045.ap-northeast-2.rds.amazonaws.com:5432
   APP_SECRET_ARN: arn:aws:secretsmanager:ap-northeast-2:717559668391:secret:devths-be-app-secrets-0cM2gP
+  RABBITMQ_SECRET_ARN: arn:aws:secretsmanager:ap-northeast-2:717559668391:secret:devths-rabbitmq-credentials-g02biL
+  REDIS_ENDPOINT: devths-redis.qeanqc.0001.apn2.cache.amazonaws.com
 
 jobs:
   build-and-push:
@@ -24,6 +26,7 @@ jobs:
     outputs:
       image_uri: ${{ steps.build.outputs.image_uri }}
       ai_ip: ${{ steps.ai-ip.outputs.ip }}
+      mq_ip: ${{ steps.mq-ip.outputs.ip }}
     steps:
       - uses: actions/checkout@v4
 
@@ -57,6 +60,14 @@ jobs:
             --query "Reservations[0].Instances[0].PrivateIpAddress" --output text)
           echo "ip=$IP" >> "$GITHUB_OUTPUT"
 
+      - name: MQ 인스턴스 사설 IP 조회 (BE -> RabbitMQ 접속용, ADR-010)
+        id: mq-ip
+        run: |
+          IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=devths-mq" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].PrivateIpAddress" --output text)
+          echo "ip=$IP" >> "$GITHUB_OUTPUT"
+
   deploy-be-1:
     name: be-1 배포
     needs: build-and-push
@@ -78,10 +89,11 @@ jobs:
             8080 \
             /actuator/health \
             devths-be \
-            "-e JAVA_OPTS=-Xmx512m -e SPRING_PROFILES_ACTIVE=aws -e FASTAPI_BASE_URL=http://${{ needs.build-and-push.outputs.ai_ip }}:8000 -e SPRING_JPA_DDL_AUTO=update -e CORS_ALLOWED_ORIGINS=* -e S3_BUCKET=devths-dev -e S3_REGION=ap-northeast-2 -e GOOGLE_REDIRECT_URI=http://localhost:8080/login/oauth2/code/google -e LOG_LEVEL=INFO -e MAXIMUM_POOL_SIZE=20 -e MINIMUM_IDLE=5 -e CONNECTION_TIMEOUT=30000 -e IDLE_TIMEOUT=600000 -e JWT_ACCESS_TOKEN_EXPIRATION=3600000 -e JWT_REFRESH_TOKEN_EXPIRATION=1209600000 -e JWT_TEMP_TOKEN_EXPIRATION=600000 -e OTLP_ENDPOINT=http://localhost:4318/v1/traces -e CHAT_RABBITMQ_MESSAGE_QUEUE=chat.message.queue -e CHAT_RABBITMQ_NOTIFICATION_QUEUE=chat.notification.queue -e RATELIMIT_BACKEND=in-memory -e RATELIMIT_AUTH_TOKEN=100 -e RATELIMIT_FILE_PRESIGNED=100 -e RATELIMIT_FILE_ATTACHMENT=200 -e RATELIMIT_BOARD_WRITE=300 -e RATELIMIT_GOOGLE_CALENDAR=100 -e RATELIMIT_GOOGLE_TASKS=100 -e RATELIMIT_FASTAPI=10 -e RATELIMIT_GOOGLE_OAUTH=50 -e MANAGEMENT_HEALTH_REDIS_ENABLED=false -e MANAGEMENT_HEALTH_RABBIT_ENABLED=false" \
+            "-e JAVA_OPTS=-Xmx512m -e SPRING_PROFILES_ACTIVE=aws -e FASTAPI_BASE_URL=http://${{ needs.build-and-push.outputs.ai_ip }}:8000 -e SPRING_JPA_DDL_AUTO=update -e CORS_ALLOWED_ORIGINS=* -e S3_BUCKET=devths-dev -e S3_REGION=ap-northeast-2 -e GOOGLE_REDIRECT_URI=http://localhost:8080/login/oauth2/code/google -e LOG_LEVEL=INFO -e MAXIMUM_POOL_SIZE=20 -e MINIMUM_IDLE=5 -e CONNECTION_TIMEOUT=30000 -e IDLE_TIMEOUT=600000 -e JWT_ACCESS_TOKEN_EXPIRATION=3600000 -e JWT_REFRESH_TOKEN_EXPIRATION=1209600000 -e JWT_TEMP_TOKEN_EXPIRATION=600000 -e OTLP_ENDPOINT=http://localhost:4318/v1/traces -e CHAT_RABBITMQ_MESSAGE_QUEUE=chat.message.queue -e CHAT_RABBITMQ_NOTIFICATION_QUEUE=chat.notification.queue -e RATELIMIT_BACKEND=redis -e RATELIMIT_AUTH_TOKEN=100 -e RATELIMIT_FILE_PRESIGNED=100 -e RATELIMIT_FILE_ATTACHMENT=200 -e RATELIMIT_BOARD_WRITE=300 -e RATELIMIT_GOOGLE_CALENDAR=100 -e RATELIMIT_GOOGLE_TASKS=100 -e RATELIMIT_FASTAPI=10 -e RATELIMIT_GOOGLE_OAUTH=50 -e REDIS_HOST_V2=${{ env.REDIS_ENDPOINT }} -e SPRING_RABBITMQ_HOST=${{ needs.build-and-push.outputs.mq_ip }} -e SPRING_RABBITMQ_PORT=5672" \
             "${{ env.DB_SECRET_ARN }}" \
             "${{ env.DB_ENDPOINT }}" \
-            "${{ env.APP_SECRET_ARN }}"
+            "${{ env.APP_SECRET_ARN }}" \
+            "${{ env.RABBITMQ_SECRET_ARN }}"
 
   deploy-be-2:
     name: be-2 배포 (be-1 성공 후 순차 진행)
@@ -104,7 +116,8 @@ jobs:
             8080 \
             /actuator/health \
             devths-be \
-            "-e JAVA_OPTS=-Xmx512m -e SPRING_PROFILES_ACTIVE=aws -e FASTAPI_BASE_URL=http://${{ needs.build-and-push.outputs.ai_ip }}:8000 -e SPRING_JPA_DDL_AUTO=update -e CORS_ALLOWED_ORIGINS=* -e S3_BUCKET=devths-dev -e S3_REGION=ap-northeast-2 -e GOOGLE_REDIRECT_URI=http://localhost:8080/login/oauth2/code/google -e LOG_LEVEL=INFO -e MAXIMUM_POOL_SIZE=20 -e MINIMUM_IDLE=5 -e CONNECTION_TIMEOUT=30000 -e IDLE_TIMEOUT=600000 -e JWT_ACCESS_TOKEN_EXPIRATION=3600000 -e JWT_REFRESH_TOKEN_EXPIRATION=1209600000 -e JWT_TEMP_TOKEN_EXPIRATION=600000 -e OTLP_ENDPOINT=http://localhost:4318/v1/traces -e CHAT_RABBITMQ_MESSAGE_QUEUE=chat.message.queue -e CHAT_RABBITMQ_NOTIFICATION_QUEUE=chat.notification.queue -e RATELIMIT_BACKEND=in-memory -e RATELIMIT_AUTH_TOKEN=100 -e RATELIMIT_FILE_PRESIGNED=100 -e RATELIMIT_FILE_ATTACHMENT=200 -e RATELIMIT_BOARD_WRITE=300 -e RATELIMIT_GOOGLE_CALENDAR=100 -e RATELIMIT_GOOGLE_TASKS=100 -e RATELIMIT_FASTAPI=10 -e RATELIMIT_GOOGLE_OAUTH=50 -e MANAGEMENT_HEALTH_REDIS_ENABLED=false -e MANAGEMENT_HEALTH_RABBIT_ENABLED=false" \
+            "-e JAVA_OPTS=-Xmx512m -e SPRING_PROFILES_ACTIVE=aws -e FASTAPI_BASE_URL=http://${{ needs.build-and-push.outputs.ai_ip }}:8000 -e SPRING_JPA_DDL_AUTO=update -e CORS_ALLOWED_ORIGINS=* -e S3_BUCKET=devths-dev -e S3_REGION=ap-northeast-2 -e GOOGLE_REDIRECT_URI=http://localhost:8080/login/oauth2/code/google -e LOG_LEVEL=INFO -e MAXIMUM_POOL_SIZE=20 -e MINIMUM_IDLE=5 -e CONNECTION_TIMEOUT=30000 -e IDLE_TIMEOUT=600000 -e JWT_ACCESS_TOKEN_EXPIRATION=3600000 -e JWT_REFRESH_TOKEN_EXPIRATION=1209600000 -e JWT_TEMP_TOKEN_EXPIRATION=600000 -e OTLP_ENDPOINT=http://localhost:4318/v1/traces -e CHAT_RABBITMQ_MESSAGE_QUEUE=chat.message.queue -e CHAT_RABBITMQ_NOTIFICATION_QUEUE=chat.notification.queue -e RATELIMIT_BACKEND=redis -e RATELIMIT_AUTH_TOKEN=100 -e RATELIMIT_FILE_PRESIGNED=100 -e RATELIMIT_FILE_ATTACHMENT=200 -e RATELIMIT_BOARD_WRITE=300 -e RATELIMIT_GOOGLE_CALENDAR=100 -e RATELIMIT_GOOGLE_TASKS=100 -e RATELIMIT_FASTAPI=10 -e RATELIMIT_GOOGLE_OAUTH=50 -e REDIS_HOST_V2=${{ env.REDIS_ENDPOINT }} -e SPRING_RABBITMQ_HOST=${{ needs.build-and-push.outputs.mq_ip }} -e SPRING_RABBITMQ_PORT=5672" \
             "${{ env.DB_SECRET_ARN }}" \
             "${{ env.DB_ENDPOINT }}" \
-            "${{ env.APP_SECRET_ARN }}"
+            "${{ env.APP_SECRET_ARN }}" \
+            "${{ env.RABBITMQ_SECRET_ARN }}"

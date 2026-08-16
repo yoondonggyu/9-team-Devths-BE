@@ -4,11 +4,11 @@
 #
 # 사용법:
 #   ssm-deploy.sh <인스턴스 Name 태그> <이미지 URI> <포트> <헬스체크 경로> <컨테이너 이름> \
-#                 [추가 docker run 옵션] [DB_SECRET_ARN] [DB_ENDPOINT] [APP_SECRET_ARN]
+#                 [추가 docker run 옵션] [DB_SECRET_ARN] [DB_ENDPOINT] [APP_SECRET_ARN] [RABBITMQ_SECRET_ARN]
 #
-# DB_SECRET_ARN/APP_SECRET_ARN을 주면, 실제 값은 GitHub/SSM 페이로드를 거치지 않고
-# 인스턴스 자신의 IAM 권한으로 Secrets Manager에서 직접 조회해 --env-file로 주입한다
-# (워크플로우 YAML이나 SSM 커맨드 페이로드에 평문 노출 안 됨).
+# DB_SECRET_ARN/APP_SECRET_ARN/RABBITMQ_SECRET_ARN을 주면, 실제 값은 GitHub/SSM 페이로드를
+# 거치지 않고 인스턴스 자신의 IAM 권한으로 Secrets Manager에서 직접 조회해 --env-file로
+# 주입한다(워크플로우 YAML이나 SSM 커맨드 페이로드에 평문 노출 안 됨).
 set -euo pipefail
 
 INSTANCE_NAME="$1"
@@ -20,6 +20,7 @@ EXTRA_ARGS="${6:-}"
 DB_SECRET_ARN="${7:-}"
 DB_ENDPOINT="${8:-}"
 APP_SECRET_ARN="${9:-}"
+RABBITMQ_SECRET_ARN="${10:-}"
 
 AWS_REGION="ap-northeast-2"
 ECR_REGISTRY="${IMAGE_URI%%/*}"
@@ -58,6 +59,11 @@ fi
 if [ -n "${APP_SECRET_ARN}" ]; then
   aws secretsmanager get-secret-value --secret-id "${APP_SECRET_ARN}" --region ${AWS_REGION} --query SecretString --output text \\
     | jq -r 'to_entries[] | .key + "=" + .value' >> "\$ENV_FILE"
+fi
+
+if [ -n "${RABBITMQ_SECRET_ARN}" ]; then
+  aws secretsmanager get-secret-value --secret-id "${RABBITMQ_SECRET_ARN}" --region ${AWS_REGION} --query SecretString --output text \\
+    | jq -r '"SPRING_RABBITMQ_USERNAME=" + .username, "SPRING_RABBITMQ_PASSWORD=" + .password' >> "\$ENV_FILE"
 fi
 
 docker stop ${CONTAINER_NAME} 2>/dev/null || true
