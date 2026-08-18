@@ -91,6 +91,7 @@ jobs:
         run: |
           git config --global user.email "ci@devths.local"
           git config --global user.name "devths-ci-bot"
+          MANIFESTS_TOKEN=$(cat /etc/ci-secrets/manifests-token/token)
           rm -rf /tmp/devths-k8s-manifests
           git clone "https://x-access-token:${MANIFESTS_TOKEN}@github.com/yoondonggyu/devths-k8s-manifests.git" /tmp/devths-k8s-manifests
           cd /tmp/devths-k8s-manifests
