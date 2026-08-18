@@ -23,7 +23,8 @@ jobs:
 
       - name: Render and apply Kaniko build Job
         run: |
-          cat <<EOF | kubectl apply -f -
+          kubectl delete job "kaniko-be-${{ steps.vars.outputs.sha_short }}" -n ci --ignore-not-found
+          cat <<EOF | kubectl create -f -
           apiVersion: batch/v1
           kind: Job
           metadata:
