@@ -28,6 +28,12 @@ spring:
       ssl:
         enabled: ${REDIS_SSL:false}
 
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
   security:
     oauth2:
       client:
